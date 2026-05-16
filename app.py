@@ -205,7 +205,7 @@ def on_player_rejoin(data):
                 'question': question['question'],
                 'options': question['options'],
                 'image_url': image_url,
-                'time_limit': 15
+                'time_limit': 10
             })
     elif sess['status'] == 'finished':
         final_scores = sorted(
@@ -261,7 +261,7 @@ def send_question(session_id):
         'question': question['question'],
         'options': question['options'],
         'image_url': image_url,
-        'time_limit': 15
+        'time_limit': 10
     }, to=session_id)
 
 @socketio.on('submit_answer')
@@ -368,6 +368,20 @@ def on_time_up(data):
         'question_number': q_index + 1,
         'total_questions': len(sess['questions'])
     }, to=session_id)
+
+    # Auto-advance to next question after 5 seconds
+    import gevent
+    def advance():
+        gevent.sleep(5)
+        if session_id in game_sessions:
+            sess2 = game_sessions[session_id]
+            if sess2['status'] == 'playing' and sess2['current_q'] == q_index:
+                sess2['current_q'] += 1
+                if sess2['current_q'] >= len(sess2['questions']):
+                    end_game(session_id)
+                else:
+                    send_question(session_id)
+    gevent.spawn(advance)
 
 @socketio.on('next_question')
 def on_next_question(data):

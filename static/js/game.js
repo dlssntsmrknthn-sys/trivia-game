@@ -13,7 +13,7 @@ let currentOptions = [];
 let hasAnswered = false;
 let questionStartTime = null;
 
-const TIMER_DURATION = 15;
+const TIMER_DURATION = 10;
 const LEADERBOARD_DISPLAY_TIME = 5000; // ms before auto-advancing (host only)
 
 function initGame(sid, uname, hostMode) {
