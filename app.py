@@ -36,7 +36,7 @@ else:
 game_sessions = {}
 
 QUESTION_TIME = 10   # seconds per question
-RESULT_TIME = 3      # seconds to show result before next question
+RESULT_TIME = 5      # seconds to show result before next question (1.5s result + 2s leaderboard + buffer)
 
 def generate_session_id():
     while True:
@@ -45,8 +45,9 @@ def generate_session_id():
             return sid
 
 def get_image_url(keyword):
-    encoded = keyword.replace(' ', '+')
-    return f"https://source.unsplash.com/800x400/?{encoded}"
+    # Use loremflickr which supports keyword-based images reliably
+    encoded = keyword.replace(' ', ',').lower()
+    return f"https://loremflickr.com/800/400/{encoded}"
 
 def normalize_answer(ans):
     if ans and len(ans) > 2 and ans[1] == ')':

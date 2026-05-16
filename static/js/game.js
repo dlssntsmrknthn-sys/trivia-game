@@ -14,6 +14,7 @@ let timeLeft = 10;
 let currentOptions = [];
 let hasAnswered = false;
 let questionStartTime = null;
+let lastAnswerResult = null; // stores the answer_result data for use in showQuestionResult
 
 const TIMER_DURATION = 10;
 
@@ -65,6 +66,7 @@ function setupSocketListeners() {
     });
 
     socket.on('answer_result', (data) => {
+        lastAnswerResult = data; // store for use in showQuestionResult
         showAnswerResult(data);
     });
 
@@ -318,17 +320,42 @@ function showQuestionResult(data) {
         if (countdown) countdown.classList.remove('hidden');
         startCountdownDisplay(3);
     } else {
-        // Players see result screen
+        // Players see result screen with correct answer + their score
         showScreen('resultScreen');
 
-        const isCorrect = hasAnswered && data.leaderboard.some(p => {
-            // Check if this player answered correctly by looking at their score change
-            return false; // We'll use answer_result for this
-        });
+        const correctAnswer = data.correct_answer;
+        document.getElementById('correctAnswerDisplay').textContent = correctAnswer;
 
-        document.getElementById('correctAnswerDisplay').textContent = data.correct_answer;
+        // Use stored answer_result data if available
+        if (lastAnswerResult) {
+            const resultIcon = document.getElementById('resultIcon');
+            const resultTitle = document.getElementById('resultTitle');
+            const pointsEarned = document.getElementById('pointsEarned');
+            const totalScoreDisplay = document.getElementById('totalScoreDisplay');
 
-        // Show leaderboard after 1 second
+            if (resultIcon) resultIcon.textContent = lastAnswerResult.is_correct ? '✅' : '❌';
+            if (resultTitle) resultTitle.textContent = lastAnswerResult.is_correct ? 'Correct!' : 'Wrong!';
+            if (pointsEarned) pointsEarned.textContent = lastAnswerResult.points_earned > 0
+                ? `+${lastAnswerResult.points_earned} pts`
+                : '0 pts';
+            if (totalScoreDisplay) totalScoreDisplay.textContent = lastAnswerResult.total_score;
+        } else {
+            // Player didn't answer (time ran out)
+            const resultIcon = document.getElementById('resultIcon');
+            const resultTitle = document.getElementById('resultTitle');
+            const pointsEarned = document.getElementById('pointsEarned');
+            const totalScoreDisplay = document.getElementById('totalScoreDisplay');
+
+            if (resultIcon) resultIcon.textContent = '⏰';
+            if (resultTitle) resultTitle.textContent = 'Time\'s Up!';
+            if (pointsEarned) pointsEarned.textContent = '0 pts';
+            if (totalScoreDisplay) totalScoreDisplay.textContent = currentScore;
+        }
+
+        // Reset lastAnswerResult for next question
+        lastAnswerResult = null;
+
+        // Show leaderboard after 1.5 seconds
         setTimeout(() => {
             showScreen('leaderboardScreen');
             renderLeaderboard(data.leaderboard, data.question_number, data.total_questions);
@@ -338,8 +365,8 @@ function showQuestionResult(data) {
 
             const countdown = document.getElementById('nextQuestionCountdown');
             if (countdown) countdown.classList.remove('hidden');
-            startCountdownDisplay(3);
-        }, 1000);
+            startCountdownDisplay(2);
+        }, 1500);
     }
 }
 
