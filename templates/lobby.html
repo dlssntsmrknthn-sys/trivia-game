@@ -266,18 +266,24 @@
 
         // Auto-fill username if provided in URL
         window.addEventListener('DOMContentLoaded', () => {
-            if (prefilledUsername) {
-                document.getElementById('usernameInput').value = prefilledUsername;
-            }
-
             if (isHost) {
+                // Hide join form immediately, show loading state
+                document.getElementById('joinSection').classList.add('hidden');
+                document.getElementById('waitingSection').classList.remove('hidden');
+                document.getElementById('waitingTitle').textContent = '👑 Connecting as Host...';
+                document.getElementById('waitingSubtitle').textContent = 'Please wait...';
+                document.getElementById('playerAvatar').textContent = '👑';
+                document.getElementById('playerNameDisplay').textContent = 'HOST';
                 initSocket();
                 joinAsHost();
+            } else {
+                if (prefilledUsername) {
+                    document.getElementById('usernameInput').value = prefilledUsername;
+                }
+                document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') joinGame();
+                });
             }
-
-            document.getElementById('usernameInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') joinGame();
-            });
         });
     </script>
 </body>
