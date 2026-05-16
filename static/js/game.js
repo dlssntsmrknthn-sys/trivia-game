@@ -30,7 +30,8 @@ function initGame(sid, uname, hostMode) {
         if (isHost) {
             socket.emit('host_join', { session_id: sessionId });
         } else {
-            socket.emit('player_join', { session_id: sessionId, username: username });
+            // Player already joined in lobby — just rejoin the socket room
+            socket.emit('player_rejoin', { session_id: sessionId, username: username });
         }
     });
 }
@@ -182,8 +183,8 @@ function startPlayerTimer(duration) {
                 disableAllOptions();
                 showAnsweredIndicator(false, null);
             }
-            // Notify server time is up
-            socket.emit('time_up', { session_id: sessionId });
+            // Only host notifies server that time is up
+            // Players just wait for question_ended event from server
         }
     }, 1000);
 }

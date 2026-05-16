@@ -174,6 +174,47 @@ def on_player_join(data):
         'count': len(players)
     }, to=session_id)
 
+@socketio.on('player_rejoin')
+def on_player_rejoin(data):
+    """Player reconnects to socket room after page redirect (game already started)."""
+    session_id = data.get('session_id')
+    username = data.get('username', '').strip()
+
+    if not session_id or not username:
+        return
+
+    if session_id not in game_sessions:
+        emit('join_error', {'message': f"Session '{session_id}' not found."})
+        return
+
+    sess = game_sessions[session_id]
+
+    # Just rejoin the socket room — don't add to players dict again
+    join_room(session_id)
+
+    # If game is playing, send current question state
+    if sess['status'] == 'playing':
+        q_index = sess['current_q']
+        questions = sess['questions']
+        if q_index < len(questions):
+            question = questions[q_index]
+            image_url = get_image_url(question.get('keyword', question['question']))
+            emit('new_question', {
+                'question_number': q_index + 1,
+                'total_questions': len(questions),
+                'question': question['question'],
+                'options': question['options'],
+                'image_url': image_url,
+                'time_limit': 15
+            })
+    elif sess['status'] == 'finished':
+        final_scores = sorted(
+            [{'username': u, 'score': s} for u, s in sess['players'].items()],
+            key=lambda x: x['score'],
+            reverse=True
+        )
+        emit('game_over', {'final_scores': final_scores, 'session_id': session_id})
+
 @socketio.on('start_game')
 def on_start_game(data):
     session_id = data.get('session_id')
@@ -304,7 +345,13 @@ def on_time_up(data):
     if sess['status'] != 'playing':
         return
 
+    # Prevent firing multiple times for the same question
     q_index = sess['current_q']
+    time_up_key = f'time_up_q{q_index}'
+    if sess.get(time_up_key):
+        return
+    sess[time_up_key] = True
+
     question = sess['questions'][q_index]
     correct_answer = question['answer']
 
