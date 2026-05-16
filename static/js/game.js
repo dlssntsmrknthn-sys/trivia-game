@@ -1,5 +1,7 @@
 /**
  * TriviaBlast - Client-side Game Logic
+ * Server-driven: the server controls all timing via gevent.sleep()
+ * Clients just display what the server sends.
  */
 
 let socket = null;
@@ -8,13 +10,12 @@ let username = '';
 let isHost = false;
 let currentScore = 0;
 let timerInterval = null;
-let timeLeft = 15;
+let timeLeft = 10;
 let currentOptions = [];
 let hasAnswered = false;
 let questionStartTime = null;
 
 const TIMER_DURATION = 10;
-const LEADERBOARD_DISPLAY_TIME = 5000; // ms before auto-advancing (host only)
 
 function initGame(sid, uname, hostMode) {
     sessionId = sid;
@@ -24,13 +25,11 @@ function initGame(sid, uname, hostMode) {
     socket = io();
     setupSocketListeners();
 
-    // Connect and join the game room
     socket.on('connect', () => {
         console.log('Connected to game server');
         if (isHost) {
             socket.emit('host_join', { session_id: sessionId });
         } else {
-            // Player already joined in lobby — just rejoin the socket room
             socket.emit('player_rejoin', { session_id: sessionId, username: username });
         }
     });
@@ -57,6 +56,8 @@ function setupSocketListeners() {
         console.log('Game started! Total questions:', data.total_questions);
         currentScore = 0;
         updateScoreDisplay();
+        // Show waiting screen until first question arrives
+        showScreen('waitingScreen');
     });
 
     socket.on('new_question', (data) => {
@@ -75,8 +76,9 @@ function setupSocketListeners() {
     });
 
     socket.on('question_ended', (data) => {
+        // Server says time is up — show correct answer briefly then server sends next question
         clearTimer();
-        showLeaderboard(data);
+        showQuestionResult(data);
     });
 
     socket.on('game_over', (data) => {
@@ -110,17 +112,14 @@ function receiveQuestion(data) {
     currentOptions = data.options;
     questionStartTime = Date.now();
 
-    // Update progress
     document.getElementById('questionProgress').textContent =
         `Question ${data.question_number} / ${data.total_questions}`;
 
     if (isHost) {
-        // Show host view
         showScreen('hostScreen');
         document.getElementById('hostQuestionText').textContent = data.question;
         document.getElementById('hostAnswered').textContent = '0';
 
-        // Show options preview
         const preview = document.getElementById('hostOptionsPreview');
         const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
         const letters = ['A', 'B', 'C', 'D'];
@@ -128,12 +127,11 @@ function receiveQuestion(data) {
             `<div class="host-opt-preview" style="background:${colors[i]}">${letters[i]}. ${opt}</div>`
         ).join('');
 
-        startHostTimer(data.time_limit || TIMER_DURATION);
+        // Host shows a visual countdown but does NOT emit time_up
+        startVisualTimer(data.time_limit || TIMER_DURATION);
     } else {
-        // Show player question screen
         showScreen('questionScreen');
 
-        // Set question image
         const img = document.getElementById('questionImage');
         const placeholder = document.getElementById('imagePlaceholder');
         img.style.display = 'block';
@@ -144,12 +142,9 @@ function receiveQuestion(data) {
             placeholder.classList.remove('hidden');
         };
 
-        // Set question text
         document.getElementById('questionNumBadge').textContent = `Q${data.question_number}`;
         document.getElementById('questionText').textContent = data.question;
 
-        // Set options
-        const letters = ['A', 'B', 'C', 'D'];
         data.options.forEach((opt, i) => {
             document.getElementById(`optText${i}`).textContent = opt;
             const btn = document.getElementById(`opt${i}`);
@@ -157,17 +152,15 @@ function receiveQuestion(data) {
             btn.classList.remove('correct', 'wrong', 'dimmed');
         });
 
-        // Hide answered indicator
         document.getElementById('answeredIndicator').classList.add('hidden');
 
-        // Start timer
-        startPlayerTimer(data.time_limit || TIMER_DURATION);
+        startVisualTimer(data.time_limit || TIMER_DURATION);
     }
 }
 
-// ─── Timer ───────────────────────────────────────────────────────────────────
+// ─── Timer (visual only — server controls actual timing) ─────────────────────
 
-function startPlayerTimer(duration) {
+function startVisualTimer(duration) {
     clearTimer();
     timeLeft = duration;
     updateTimerDisplay(timeLeft, duration);
@@ -178,59 +171,39 @@ function startPlayerTimer(duration) {
 
         if (timeLeft <= 0) {
             clearTimer();
-            if (!hasAnswered) {
-                // Time's up - no answer submitted
+            if (!isHost && !hasAnswered) {
                 disableAllOptions();
                 showAnsweredIndicator(false, null);
             }
-            // Only host notifies server that time is up
-            // Players just wait for question_ended event from server
-        }
-    }, 1000);
-}
-
-function startHostTimer(duration) {
-    clearTimer();
-    timeLeft = duration;
-    updateHostTimer(timeLeft, duration);
-
-    timerInterval = setInterval(() => {
-        timeLeft--;
-        updateHostTimer(timeLeft, duration);
-
-        if (timeLeft <= 0) {
-            clearTimer();
-            socket.emit('time_up', { session_id: sessionId });
+            // Server will send question_ended when time is up
         }
     }, 1000);
 }
 
 function updateTimerDisplay(current, total) {
+    // Player timer bar
     const bar = document.getElementById('timerBar');
     const display = document.getElementById('timerDisplay');
-    if (!bar || !display) return;
+    if (bar && display) {
+        const pct = (current / total) * 100;
+        bar.style.width = pct + '%';
+        display.textContent = current;
+        const isUrgent = current <= 3;
+        bar.classList.toggle('urgent', isUrgent);
+        display.classList.toggle('urgent', isUrgent);
+    }
 
-    const pct = (current / total) * 100;
-    bar.style.width = pct + '%';
-    display.textContent = current;
-
-    const isUrgent = current <= 5;
-    bar.classList.toggle('urgent', isUrgent);
-    display.classList.toggle('urgent', isUrgent);
-}
-
-function updateHostTimer(current, total) {
+    // Host timer circle
     const circle = document.getElementById('timerCircle');
     const numEl = document.getElementById('hostTimerNum');
-    if (!circle || !numEl) return;
-
-    const circumference = 283;
-    const offset = circumference - (current / total) * circumference;
-    circle.style.strokeDashoffset = offset;
-    numEl.textContent = current;
-
-    const isUrgent = current <= 5;
-    circle.classList.toggle('urgent', isUrgent);
+    if (circle && numEl) {
+        const circumference = 283;
+        const offset = circumference - (current / total) * circumference;
+        circle.style.strokeDashoffset = offset;
+        numEl.textContent = current;
+        const isUrgent = current <= 3;
+        circle.classList.toggle('urgent', isUrgent);
+    }
 }
 
 function clearTimer() {
@@ -249,15 +222,15 @@ function submitAnswer(optionIndex) {
     const timeTaken = Math.min(TIMER_DURATION, (Date.now() - questionStartTime) / 1000);
     const selectedAnswer = currentOptions[optionIndex];
 
-    // Visual feedback - highlight selected
     disableAllOptions();
-    document.getElementById(`opt${optionIndex}`).style.opacity = '1';
-    document.getElementById(`opt${optionIndex}`).style.transform = 'scale(1.05)';
+    const selectedBtn = document.getElementById(`opt${optionIndex}`);
+    if (selectedBtn) {
+        selectedBtn.style.opacity = '1';
+        selectedBtn.style.transform = 'scale(1.05)';
+    }
 
-    // Show waiting indicator
     showAnsweredIndicator(null, selectedAnswer);
 
-    // Send to server
     socket.emit('submit_answer', {
         session_id: sessionId,
         username: username,
@@ -285,7 +258,7 @@ function showAnsweredIndicator(isCorrect, answer) {
 
     if (isCorrect === null) {
         icon.textContent = '⏳';
-        text.textContent = `Answered! Waiting for time to end...`;
+        text.textContent = 'Answered! Waiting for results...';
     } else if (isCorrect) {
         icon.textContent = '✅';
         text.textContent = 'Correct! Great job!';
@@ -295,11 +268,9 @@ function showAnsweredIndicator(isCorrect, answer) {
     }
 }
 
-// ─── Answer Result ───────────────────────────────────────────────────────────
+// ─── Answer Result (from server after submitting) ────────────────────────────
 
 function showAnswerResult(data) {
-    clearTimer();
-
     // Highlight correct/wrong options
     for (let i = 0; i < currentOptions.length; i++) {
         const btn = document.getElementById(`opt${i}`);
@@ -307,40 +278,78 @@ function showAnswerResult(data) {
         btn.classList.remove('dimmed');
         if (currentOptions[i] === data.correct_answer) {
             btn.classList.add('correct');
-            btn.classList.remove('wrong');
-        } else if (hasAnswered && currentOptions[i] !== data.correct_answer) {
+        } else {
             btn.classList.add('wrong');
         }
     }
 
-    // Update score
     currentScore = data.total_score;
     updateScoreDisplay();
 
-    // Show result screen after brief delay
-    setTimeout(() => {
-        showScreen('resultScreen');
-
-        const isCorrect = data.is_correct;
-        document.getElementById('resultIcon').textContent = isCorrect ? '✅' : '❌';
-        document.getElementById('resultTitle').textContent = isCorrect ? 'Correct! 🎉' : 'Wrong! 😢';
-        document.getElementById('resultTitle').className = `result-title ${isCorrect ? 'correct-title' : 'wrong-title'}`;
-        document.getElementById('correctAnswerDisplay').textContent = data.correct_answer;
-        document.getElementById('pointsEarned').textContent = data.points_earned > 0 ? `+${data.points_earned} pts` : '0 pts';
-        document.getElementById('totalScoreDisplay').textContent = data.total_score;
-    }, 1500);
+    // Update answered indicator
+    const indicator = document.getElementById('answeredIndicator');
+    const icon = document.getElementById('answeredIcon');
+    const text = document.getElementById('answeredText');
+    if (indicator) {
+        indicator.classList.remove('hidden');
+        icon.textContent = data.is_correct ? '✅' : '❌';
+        text.textContent = data.is_correct
+            ? `Correct! +${data.points_earned} pts`
+            : `Wrong! Correct: ${data.correct_answer}`;
+    }
 }
 
-// ─── Leaderboard ─────────────────────────────────────────────────────────────
+// ─── Question Ended (server-driven, shows result then auto-advances) ──────────
 
-function showLeaderboard(data) {
-    showScreen('leaderboardScreen');
+function showQuestionResult(data) {
+    // Show the result screen with correct answer and leaderboard
+    // Server will auto-send next question after RESULT_TIME seconds
 
+    if (isHost) {
+        // Host sees leaderboard
+        showScreen('leaderboardScreen');
+        renderLeaderboard(data.leaderboard, data.question_number, data.total_questions);
+
+        // Hide next button — server auto-advances
+        const hostNextBtn = document.getElementById('hostNextBtn');
+        if (hostNextBtn) hostNextBtn.classList.add('hidden');
+
+        const countdown = document.getElementById('nextQuestionCountdown');
+        if (countdown) countdown.classList.remove('hidden');
+        startCountdownDisplay(3);
+    } else {
+        // Players see result screen
+        showScreen('resultScreen');
+
+        const isCorrect = hasAnswered && data.leaderboard.some(p => {
+            // Check if this player answered correctly by looking at their score change
+            return false; // We'll use answer_result for this
+        });
+
+        document.getElementById('correctAnswerDisplay').textContent = data.correct_answer;
+
+        // Show leaderboard after 1 second
+        setTimeout(() => {
+            showScreen('leaderboardScreen');
+            renderLeaderboard(data.leaderboard, data.question_number, data.total_questions);
+
+            const hostNextBtn = document.getElementById('hostNextBtn');
+            if (hostNextBtn) hostNextBtn.classList.add('hidden');
+
+            const countdown = document.getElementById('nextQuestionCountdown');
+            if (countdown) countdown.classList.remove('hidden');
+            startCountdownDisplay(3);
+        }, 1000);
+    }
+}
+
+function renderLeaderboard(leaderboard, questionNum, totalQuestions) {
     const list = document.getElementById('leaderboardList');
+    if (!list) return;
     list.innerHTML = '';
 
     const rankEmojis = ['🥇', '🥈', '🥉'];
-    data.leaderboard.forEach((player, i) => {
+    leaderboard.forEach((player, i) => {
         const row = document.createElement('div');
         row.className = `lb-row ${i === 0 ? 'lb-1st' : i === 1 ? 'lb-2nd' : i === 2 ? 'lb-3rd' : ''}`;
         row.style.animationDelay = `${i * 0.1}s`;
@@ -351,43 +360,27 @@ function showLeaderboard(data) {
         `;
         list.appendChild(row);
     });
-
-    const isLastQuestion = data.question_number >= data.total_questions;
-
-    if (isHost) {
-        // Show next question button for host
-        document.getElementById('hostNextBtn').classList.remove('hidden');
-        document.getElementById('nextQuestionCountdown').classList.add('hidden');
-
-        if (isLastQuestion) {
-            document.querySelector('#hostNextBtn button').textContent = '🏆 Show Final Results';
-        }
-    } else {
-        // Auto-countdown for players
-        document.getElementById('hostNextBtn').classList.add('hidden');
-        document.getElementById('nextQuestionCountdown').classList.remove('hidden');
-
-        let countdown = 5;
-        document.getElementById('nextCountNum').textContent = countdown;
-        const countInterval = setInterval(() => {
-            countdown--;
-            document.getElementById('nextCountNum').textContent = countdown;
-            if (countdown <= 0) clearInterval(countInterval);
-        }, 1000);
-    }
 }
 
-function requestNextQuestion() {
-    socket.emit('next_question', { session_id: sessionId });
-    document.getElementById('hostNextBtn').classList.add('hidden');
+function startCountdownDisplay(seconds) {
+    const numEl = document.getElementById('nextCountNum');
+    if (!numEl) return;
+    numEl.textContent = seconds;
+    const interval = setInterval(() => {
+        seconds--;
+        numEl.textContent = seconds;
+        if (seconds <= 0) clearInterval(interval);
+    }, 1000);
 }
 
 // ─── Game Over ────────────────────────────────────────────────────────────────
 
 function showGameOver(data) {
+    clearTimer();
     showScreen('gameOverScreen');
 
     const list = document.getElementById('finalLeaderboard');
+    if (!list) return;
     list.innerHTML = '';
 
     const rankEmojis = ['🥇', '🥈', '🥉'];

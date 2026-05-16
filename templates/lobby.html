@@ -42,8 +42,8 @@
                 <div class="host-divider">
                     <span>or</span>
                 </div>
-                <button class="btn btn-outline" onclick="joinAsHost()">
-                    👑 Join as Host
+                <button class="btn btn-outline" onclick="openHostPanel()">
+                    👑 Open Host Dashboard
                 </button>
             </div>
         </div>
@@ -181,6 +181,14 @@
 
             if (!socket) initSocket();
             socket.emit('player_join', { session_id: SESSION_ID, username: username });
+        }
+
+        function openHostPanel() {
+            // Show a prompt for host name, then join as host
+            const hostName = prompt('Enter your host name (optional):', 'Host');
+            if (hostName === null) return; // cancelled
+            if (!socket) initSocket();
+            socket.emit('host_join', { session_id: SESSION_ID });
         }
 
         function joinAsHost() {

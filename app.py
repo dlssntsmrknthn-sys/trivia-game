@@ -2,8 +2,9 @@ import os
 import json
 import random
 import string
-from flask import Flask, render_template, request, jsonify, session
-from flask_socketio import SocketIO, emit, join_room, leave_room
+import gevent
+from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit, join_room
 import database as db
 import sheets_sync
 
@@ -11,10 +12,10 @@ app = Flask(__name__)
 app.secret_key = 'trivia_secret_key_2024'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-# Initialize database (runs on startup whether via gunicorn or direct)
+# Initialize database
 db.init_db()
 
-# Load questions — try Google Sheets first, fall back to local JSON
+# Load questions
 print("[App] Loading questions...")
 try:
     ALL_QUESTIONS = sheets_sync.load_questions_from_sheet()
@@ -33,30 +34,24 @@ else:
 
 # In-memory game state
 game_sessions = {}
-# Structure:
-# {
-#   session_id: {
-#     'questions': [...],       # 25 selected questions
-#     'current_q': 0,           # current question index
-#     'status': 'waiting'|'playing'|'finished',
-#     'host_sid': '...',        # socket id of host
-#     'players': {username: score},
-#     'answers_received': {username: answered},
-#     'timer_started': False
-#   }
-# }
+
+QUESTION_TIME = 10   # seconds per question
+RESULT_TIME = 3      # seconds to show result before next question
 
 def generate_session_id():
-    """Generate a unique 6-character alphanumeric session ID."""
     while True:
         sid = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         if sid not in game_sessions:
             return sid
 
 def get_image_url(keyword):
-    """Generate Unsplash image URL based on keyword."""
     encoded = keyword.replace(' ', '+')
     return f"https://source.unsplash.com/800x400/?{encoded}"
+
+def normalize_answer(ans):
+    if ans and len(ans) > 2 and ans[1] == ')':
+        return ans[2:].strip()
+    return ans.strip() if ans else ''
 
 # ─── HTTP Routes ────────────────────────────────────────────────────────────────
 
@@ -67,7 +62,6 @@ def index():
 @app.route('/create_session', methods=['POST'])
 def create_session():
     session_id = generate_session_id()
-    # Select 25 random questions
     selected = random.sample(ALL_QUESTIONS, min(25, len(ALL_QUESTIONS)))
     game_sessions[session_id] = {
         'questions': selected,
@@ -76,7 +70,6 @@ def create_session():
         'host_sid': None,
         'players': {},
         'answers_received': {},
-        'timer_started': False
     }
     db.create_session(session_id)
     return jsonify({'session_id': session_id})
@@ -160,27 +153,25 @@ def on_player_join(data):
         emit('join_error', {'message': f"Username '{username}' is already taken."})
         return
 
-    # Add player
     sess['players'][username] = 0
     db.add_player(session_id, username)
     join_room(session_id)
 
     emit('join_success', {'username': username, 'session_id': session_id})
 
-    # Notify all in room
     players = list(sess['players'].keys())
-    emit('player_list_update', {
+    socketio.emit('player_list_update', {
         'players': players,
         'count': len(players)
     }, to=session_id)
 
 @socketio.on('player_rejoin')
 def on_player_rejoin(data):
-    """Player reconnects to socket room after page redirect (game already started)."""
+    """Player reconnects to socket room after page redirect."""
     session_id = data.get('session_id')
     username = data.get('username', '').strip()
 
-    if not session_id or not username:
+    if not session_id:
         return
 
     if session_id not in game_sessions:
@@ -188,11 +179,8 @@ def on_player_rejoin(data):
         return
 
     sess = game_sessions[session_id]
-
-    # Just rejoin the socket room — don't add to players dict again
     join_room(session_id)
 
-    # If game is playing, send current question state
     if sess['status'] == 'playing':
         q_index = sess['current_q']
         questions = sess['questions']
@@ -205,13 +193,12 @@ def on_player_rejoin(data):
                 'question': question['question'],
                 'options': question['options'],
                 'image_url': image_url,
-                'time_limit': 10
+                'time_limit': QUESTION_TIME
             })
     elif sess['status'] == 'finished':
         final_scores = sorted(
             [{'username': u, 'score': s} for u, s in sess['players'].items()],
-            key=lambda x: x['score'],
-            reverse=True
+            key=lambda x: x['score'], reverse=True
         )
         emit('game_over', {'final_scores': final_scores, 'session_id': session_id})
 
@@ -235,41 +222,85 @@ def on_start_game(data):
     sess['current_q'] = 0
     db.update_session_status(session_id, 'playing')
 
-    emit('game_started', {'total_questions': len(sess['questions'])}, to=session_id)
-    send_question(session_id)
+    socketio.emit('game_started', {'total_questions': len(sess['questions'])}, to=session_id)
 
-def send_question(session_id):
+    # Spawn the server-driven game loop
+    gevent.spawn(run_game_loop, session_id)
+
+def run_game_loop(session_id):
+    """Server-driven game loop — runs entirely on the server, no client timers needed."""
     sess = game_sessions.get(session_id)
     if not sess:
         return
 
-    q_index = sess['current_q']
     questions = sess['questions']
 
-    if q_index >= len(questions):
-        end_game(session_id)
-        return
+    for q_index in range(len(questions)):
+        if session_id not in game_sessions:
+            return
+        sess = game_sessions[session_id]
+        if sess['status'] != 'playing':
+            return
 
-    question = questions[q_index]
-    sess['answers_received'] = {}
+        sess['current_q'] = q_index
+        sess['answers_received'] = {}
 
-    image_url = get_image_url(question.get('keyword', question['question']))
+        question = questions[q_index]
+        image_url = get_image_url(question.get('keyword', question['question']))
 
-    socketio.emit('new_question', {
-        'question_number': q_index + 1,
-        'total_questions': len(questions),
-        'question': question['question'],
-        'options': question['options'],
-        'image_url': image_url,
-        'time_limit': 10
-    }, to=session_id)
+        # Send question to all players
+        socketio.emit('new_question', {
+            'question_number': q_index + 1,
+            'total_questions': len(questions),
+            'question': question['question'],
+            'options': question['options'],
+            'image_url': image_url,
+            'time_limit': QUESTION_TIME
+        }, to=session_id)
+
+        # Wait for question time
+        gevent.sleep(QUESTION_TIME)
+
+        if session_id not in game_sessions:
+            return
+
+        sess = game_sessions[session_id]
+        correct_answer = question['answer']
+
+        # Build leaderboard
+        leaderboard = sorted(
+            [{'username': u, 'score': s} for u, s in sess['players'].items()],
+            key=lambda x: x['score'], reverse=True
+        )
+
+        is_last = (q_index == len(questions) - 1)
+
+        # Send question result (correct answer + scores) for RESULT_TIME seconds
+        socketio.emit('question_ended', {
+            'correct_answer': correct_answer,
+            'leaderboard': leaderboard[:10],
+            'question_number': q_index + 1,
+            'total_questions': len(questions),
+            'is_last': is_last
+        }, to=session_id)
+
+        if is_last:
+            # Last question — wait a bit then end game
+            gevent.sleep(RESULT_TIME)
+            break
+        else:
+            # Wait RESULT_TIME then loop to next question
+            gevent.sleep(RESULT_TIME)
+
+    # End game
+    end_game(session_id)
 
 @socketio.on('submit_answer')
 def on_submit_answer(data):
     session_id = data.get('session_id')
     username = data.get('username')
     selected = data.get('answer')
-    time_taken = data.get('time_taken', 15)
+    time_taken = data.get('time_taken', QUESTION_TIME)
 
     if session_id not in game_sessions:
         return
@@ -286,31 +317,16 @@ def on_submit_answer(data):
     if username in sess['answers_received']:
         return
 
-    # Normalize answer comparison:
-    # Sheet answer may be "B) Amelia Earhart" while selected is "Amelia Earhart"
-    # Strip leading "X) " prefix if present for comparison
-    def normalize_answer(ans):
-        if ans and len(ans) > 2 and ans[1] == ')':
-            return ans[2:].strip()
-        return ans.strip() if ans else ans
-
     norm_correct = normalize_answer(correct_answer)
     norm_selected = normalize_answer(selected)
     is_correct = (norm_selected == norm_correct) or (selected == correct_answer)
-    # Score: max 1000 points, scaled by speed (faster = more points)
+
     if is_correct:
-        points = max(100, int(1000 * (1 - (time_taken / 15) * 0.5)))
+        points = max(100, int(1000 * (1 - (time_taken / QUESTION_TIME) * 0.5)))
     else:
         points = 0
 
-    sess['answers_received'][username] = {
-        'answer': selected,
-        'is_correct': is_correct,
-        'points': points,
-        'time_taken': time_taken
-    }
-
-    # Update score
+    sess['answers_received'][username] = True
     sess['players'][username] = sess['players'].get(username, 0) + points
     db.update_player_score(session_id, username, points)
     db.log_answer(
@@ -319,7 +335,6 @@ def on_submit_answer(data):
         is_correct, time_taken, points
     )
 
-    # Notify player of their result
     emit('answer_result', {
         'is_correct': is_correct,
         'correct_answer': correct_answer,
@@ -327,75 +342,12 @@ def on_submit_answer(data):
         'total_score': sess['players'][username]
     })
 
-    # Notify host of answer count
     total_players = len(sess['players'])
     answers_count = len(sess['answers_received'])
     socketio.emit('answer_count_update', {
         'answered': answers_count,
         'total': total_players
     }, to=f"{session_id}_host")
-
-@socketio.on('time_up')
-def on_time_up(data):
-    session_id = data.get('session_id')
-    if session_id not in game_sessions:
-        return
-
-    sess = game_sessions[session_id]
-    if sess['status'] != 'playing':
-        return
-
-    # Prevent firing multiple times for the same question
-    q_index = sess['current_q']
-    time_up_key = f'time_up_q{q_index}'
-    if sess.get(time_up_key):
-        return
-    sess[time_up_key] = True
-
-    question = sess['questions'][q_index]
-    correct_answer = question['answer']
-
-    # Build leaderboard
-    leaderboard = sorted(
-        [{'username': u, 'score': s} for u, s in sess['players'].items()],
-        key=lambda x: x['score'],
-        reverse=True
-    )
-
-    socketio.emit('question_ended', {
-        'correct_answer': correct_answer,
-        'leaderboard': leaderboard[:10],
-        'question_number': q_index + 1,
-        'total_questions': len(sess['questions'])
-    }, to=session_id)
-
-    # Auto-advance to next question after 5 seconds
-    import gevent
-    def advance():
-        gevent.sleep(5)
-        if session_id in game_sessions:
-            sess2 = game_sessions[session_id]
-            if sess2['status'] == 'playing' and sess2['current_q'] == q_index:
-                sess2['current_q'] += 1
-                if sess2['current_q'] >= len(sess2['questions']):
-                    end_game(session_id)
-                else:
-                    send_question(session_id)
-    gevent.spawn(advance)
-
-@socketio.on('next_question')
-def on_next_question(data):
-    session_id = data.get('session_id')
-    if session_id not in game_sessions:
-        return
-
-    sess = game_sessions[session_id]
-    sess['current_q'] += 1
-
-    if sess['current_q'] >= len(sess['questions']):
-        end_game(session_id)
-    else:
-        send_question(session_id)
 
 def end_game(session_id):
     sess = game_sessions.get(session_id)
@@ -407,8 +359,7 @@ def end_game(session_id):
 
     final_scores = sorted(
         [{'username': u, 'score': s} for u, s in sess['players'].items()],
-        key=lambda x: x['score'],
-        reverse=True
+        key=lambda x: x['score'], reverse=True
     )
 
     socketio.emit('game_over', {
@@ -416,24 +367,12 @@ def end_game(session_id):
         'session_id': session_id
     }, to=session_id)
 
-    # Sync scores to Google Sheets (if enabled)
-    sheets_sync.log_session_scores(session_id, final_scores)
-
-@socketio.on('request_leaderboard')
-def on_request_leaderboard(data):
-    session_id = data.get('session_id')
-    if session_id not in game_sessions:
-        return
-    sess = game_sessions[session_id]
-    leaderboard = sorted(
-        [{'username': u, 'score': s} for u, s in sess['players'].items()],
-        key=lambda x: x['score'],
-        reverse=True
-    )
-    emit('leaderboard_update', {'leaderboard': leaderboard})
+    try:
+        sheets_sync.log_session_scores(session_id, final_scores)
+    except Exception as e:
+        print(f"[Sheets] Error logging scores: {e}")
 
 if __name__ == '__main__':
-    db.init_db()
     print("=" * 50)
     print("  🎮 Trivia Game Server Starting...")
     print("  Open http://localhost:5000 in your browser")
