@@ -9,11 +9,19 @@ import sheets_sync
 
 app = Flask(__name__)
 app.secret_key = 'trivia_secret_key_2024'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+# Initialize database (runs on startup whether via gunicorn or direct)
+db.init_db()
 
 # Load questions — try Google Sheets first, fall back to local JSON
 print("[App] Loading questions...")
-ALL_QUESTIONS = sheets_sync.load_questions_from_sheet()
+try:
+    ALL_QUESTIONS = sheets_sync.load_questions_from_sheet()
+except Exception as e:
+    print(f"[App] Sheets error: {e}")
+    ALL_QUESTIONS = None
+
 if ALL_QUESTIONS:
     print(f"[App] ✅ Loaded {len(ALL_QUESTIONS)} questions from Google Sheets")
 else:
