@@ -3,8 +3,6 @@ Google Sheets Sync for TriviaBlast
 ====================================
 Reads questions from the "Questions" tab and logs scores to the "Log" tab.
 
-Spreadsheet: https://docs.google.com/spreadsheets/d/1dexaAuVyMPB676q28CeP9sh52J3Vk0SSleWNAxgYj3U/
-
 Questions tab columns:
   A: Genre (used as image keyword)
   B: Question
@@ -28,16 +26,9 @@ QUESTIONS_SHEET = "Questions"
 LOG_SHEET = "Log"
 # ─────────────────────────────────────────────────────────────────────────────
 
-_client = None
-_spreadsheet = None
-
 
 def _get_credentials():
-    """
-    Load Google credentials from environment variable GOOGLE_CREDENTIALS (JSON string)
-    or fall back to credentials.json file in the project directory.
-    """
-    # Try environment variable first (used in Railway/cloud deployment)
+    """Load Google credentials from env var or credentials.json file."""
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     if creds_json:
         try:
@@ -46,7 +37,6 @@ def _get_credentials():
             print(f"[Sheets] Error parsing GOOGLE_CREDENTIALS env var: {e}")
             return None
 
-    # Fall back to credentials.json file
     creds_file = os.path.join(os.path.dirname(__file__), 'credentials.json')
     if os.path.exists(creds_file):
         try:
@@ -56,16 +46,12 @@ def _get_credentials():
             print(f"[Sheets] Error reading credentials.json: {e}")
             return None
 
-    print("[Sheets] No credentials found. Set GOOGLE_CREDENTIALS env var or add credentials.json")
+    print("[Sheets] No credentials found.")
     return None
 
 
 def _get_client():
-    """Initialize and return the gspread client."""
-    global _client
-    if _client is not None:
-        return _client
-
+    """Create a fresh gspread client each time (avoids stale token issues)."""
     creds_data = _get_credentials()
     if creds_data is None:
         return None
@@ -79,12 +65,11 @@ def _get_client():
             'https://www.googleapis.com/auth/drive'
         ]
         creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
-        _client = gspread.authorize(creds)
-        print("[Sheets] ✅ Google Sheets client initialized")
-        return _client
+        client = gspread.authorize(creds)
+        return client
 
     except ImportError:
-        print("[Sheets] gspread not installed. Run: uv add gspread google-auth")
+        print("[Sheets] gspread not installed.")
         return None
     except Exception as e:
         print(f"[Sheets] Failed to initialize client: {e}")
@@ -92,18 +77,12 @@ def _get_client():
 
 
 def _get_spreadsheet():
-    """Get the spreadsheet object."""
-    global _spreadsheet
-    if _spreadsheet is not None:
-        return _spreadsheet
-
+    """Get a fresh spreadsheet connection."""
     client = _get_client()
     if client is None:
         return None
-
     try:
-        _spreadsheet = client.open_by_key(SPREADSHEET_ID)
-        return _spreadsheet
+        return client.open_by_key(SPREADSHEET_ID)
     except Exception as e:
         print(f"[Sheets] Failed to open spreadsheet: {e}")
         return None
@@ -111,12 +90,7 @@ def _get_spreadsheet():
 
 def load_questions_from_sheet():
     """
-    Load questions from the 'Questions' tab.
-    
-    Column mapping:
-      A=Genre (keyword), B=Question, C=Option A, D=Option B,
-      E=Option C, F=Option D, G=Correct Answer
-
+    Load ALL questions from the 'Questions' tab.
     Returns a list of question dicts, or None if unavailable.
     """
     ss = _get_spreadsheet()
@@ -125,7 +99,6 @@ def load_questions_from_sheet():
 
     try:
         ws = ss.worksheet(QUESTIONS_SHEET)
-        # Get all values (skip header row 1)
         all_values = ws.get_all_values()
 
         if len(all_values) < 2:
@@ -133,29 +106,24 @@ def load_questions_from_sheet():
             return None
 
         questions = []
-        # Row 0 is header, start from row 1
         for i, row in enumerate(all_values[1:], start=1):
-            # Pad row to at least 7 columns
             while len(row) < 7:
                 row.append('')
 
-            genre   = row[0].strip()   # Column A: Genre
-            question = row[1].strip()  # Column B: Question
-            opt_a   = row[2].strip()   # Column C: Option A
-            opt_b   = row[3].strip()   # Column D: Option B
-            opt_c   = row[4].strip()   # Column E: Option C
-            opt_d   = row[5].strip()   # Column F: Option D
-            answer  = row[6].strip()   # Column G: Correct Answer
+            genre    = row[0].strip()
+            question = row[1].strip()
+            opt_a    = row[2].strip()
+            opt_b    = row[3].strip()
+            opt_c    = row[4].strip()
+            opt_d    = row[5].strip()
+            answer   = row[6].strip()
 
-            # Skip empty rows
             if not question or not answer:
                 continue
 
-            # Use genre as image keyword, fall back to first 30 chars of question
             keyword = genre if genre else question[:30]
 
             # Normalize answer: strip "B) " prefix if present
-            # so answer matches the plain option text
             def strip_prefix(s):
                 s = s.strip()
                 if len(s) > 2 and s[1] == ')':
@@ -181,50 +149,38 @@ def load_questions_from_sheet():
         return None
 
 
-def ensure_log_headers():
-    """Make sure the Log sheet has the correct headers."""
-    ss = _get_spreadsheet()
-    if ss is None:
-        return False
-
-    try:
-        try:
-            ws = ss.worksheet(LOG_SHEET)
-        except Exception:
-            ws = ss.add_worksheet(title=LOG_SHEET, rows=1000, cols=10)
-
-        existing = ws.row_values(1)
-        headers = ['Session ID', 'Username', 'Score', 'Rank', 'Logged At']
-        if existing[:5] != headers:
-            ws.update('A1:E1', [headers])
-            print(f"[Sheets] Headers set in '{LOG_SHEET}' tab")
-        return True
-
-    except Exception as e:
-        print(f"[Sheets] Error ensuring log headers: {e}")
-        return False
-
-
 def log_session_scores(session_id, final_scores):
     """
     Write final scores for a session to the Log sheet.
-
-    Args:
-        session_id (str): The game session ID
-        final_scores (list): List of dicts with 'username' and 'score',
-                             sorted by score descending
+    Uses a fresh connection each time to avoid stale token issues.
     """
+    print(f"[Sheets] Attempting to log {len(final_scores)} scores for session {session_id}...")
+
     ss = _get_spreadsheet()
     if ss is None:
-        print(f"[Sheets] Cannot log scores — no connection. Session: {session_id}")
-        return
+        print(f"[Sheets] ❌ Cannot log scores — no connection. Session: {session_id}")
+        return False
 
     try:
+        # Get or create Log worksheet
         try:
             ws = ss.worksheet(LOG_SHEET)
-        except Exception:
+            print(f"[Sheets] Found '{LOG_SHEET}' worksheet")
+        except Exception as e:
+            print(f"[Sheets] '{LOG_SHEET}' tab not found, creating it... ({e})")
             ws = ss.add_worksheet(title=LOG_SHEET, rows=1000, cols=10)
             ws.update('A1:E1', [['Session ID', 'Username', 'Score', 'Rank', 'Logged At']])
+            print(f"[Sheets] Created '{LOG_SHEET}' tab with headers")
+
+        # Check/set headers
+        try:
+            existing_headers = ws.row_values(1)
+            expected = ['Session ID', 'Username', 'Score', 'Rank', 'Logged At']
+            if existing_headers[:5] != expected:
+                ws.update('A1:E1', [expected])
+                print("[Sheets] Updated headers in Log tab")
+        except Exception as e:
+            print(f"[Sheets] Warning: could not check headers: {e}")
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         rows = []
@@ -239,10 +195,17 @@ def log_session_scores(session_id, final_scores):
 
         if rows:
             ws.append_rows(rows, value_input_option='USER_ENTERED')
-            print(f"[Sheets] ✅ Logged {len(rows)} scores for session {session_id}")
+            print(f"[Sheets] ✅ Successfully logged {len(rows)} scores for session {session_id}")
+            return True
+        else:
+            print(f"[Sheets] No scores to log for session {session_id}")
+            return False
 
     except Exception as e:
-        print(f"[Sheets] Error logging scores: {e}")
+        print(f"[Sheets] ❌ Error logging scores: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 if __name__ == '__main__':

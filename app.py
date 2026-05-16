@@ -35,6 +35,11 @@ else:
 # In-memory game state
 game_sessions = {}
 
+# Track recently used question IDs across sessions to maximize variety
+# Stores a rotating pool of used question IDs
+recently_used_question_ids = []
+MAX_RECENTLY_USED = 0  # Will be set dynamically based on total questions
+
 QUESTION_TIME = 10   # seconds per question
 RESULT_TIME = 5      # seconds to show result before next question (1.5s result + 2s leaderboard + buffer)
 
@@ -62,10 +67,59 @@ def index():
 
 @app.route('/create_session', methods=['POST'])
 def create_session():
+    global ALL_QUESTIONS, recently_used_question_ids, MAX_RECENTLY_USED
+
+    # Try to reload questions fresh from Sheets for each session
+    try:
+        fresh_questions = sheets_sync.load_questions_from_sheet()
+        if fresh_questions:
+            ALL_QUESTIONS = fresh_questions
+            print(f"[App] Refreshed {len(ALL_QUESTIONS)} questions from Sheets")
+    except Exception as e:
+        print(f"[App] Could not refresh questions: {e}")
+
+    total = len(ALL_QUESTIONS)
+    num_questions = min(15, total)
+
+    # Set max recently used to ~60% of total so we always have fresh questions
+    MAX_RECENTLY_USED = max(0, total - num_questions)
+
+    # Pick questions avoiding recently used ones
+    available = [q for q in ALL_QUESTIONS if q['id'] not in recently_used_question_ids]
+
+    # If not enough available, reset the pool
+    if len(available) < num_questions:
+        print(f"[App] Resetting question pool (only {len(available)} available, need {num_questions})")
+        recently_used_question_ids = []
+        available = ALL_QUESTIONS[:]
+
+    # Shuffle and pick
+    random.shuffle(available)
+    selected = available[:num_questions]
+
+    # Track used question IDs (keep rolling window)
+    used_ids = [q['id'] for q in selected]
+    recently_used_question_ids.extend(used_ids)
+    # Keep only the most recent MAX_RECENTLY_USED IDs
+    if MAX_RECENTLY_USED > 0:
+        recently_used_question_ids = recently_used_question_ids[-MAX_RECENTLY_USED:]
+    else:
+        recently_used_question_ids = []
+
+    # Shuffle options for each question to add variety
+    session_questions = []
+    for q in selected:
+        q_copy = dict(q)
+        options = q_copy['options'][:]
+        correct = q_copy['answer']
+        random.shuffle(options)
+        q_copy['options'] = options
+        q_copy['answer'] = correct  # answer text stays the same
+        session_questions.append(q_copy)
+
     session_id = generate_session_id()
-    selected = random.sample(ALL_QUESTIONS, min(15, len(ALL_QUESTIONS)))
     game_sessions[session_id] = {
-        'questions': selected,
+        'questions': session_questions,
         'current_q': 0,
         'status': 'waiting',
         'host_sid': None,
@@ -73,6 +127,7 @@ def create_session():
         'answers_received': {},
     }
     db.create_session(session_id)
+    print(f"[App] Created session {session_id} with {len(session_questions)} questions")
     return jsonify({'session_id': session_id})
 
 @app.route('/join/<session_id>')
