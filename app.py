@@ -63,7 +63,7 @@ def index():
 @app.route('/create_session', methods=['POST'])
 def create_session():
     session_id = generate_session_id()
-    selected = random.sample(ALL_QUESTIONS, min(25, len(ALL_QUESTIONS)))
+    selected = random.sample(ALL_QUESTIONS, min(15, len(ALL_QUESTIONS)))
     game_sessions[session_id] = {
         'questions': selected,
         'current_q': 0,

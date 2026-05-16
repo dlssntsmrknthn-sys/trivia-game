@@ -4,6 +4,66 @@
  * Clients just display what the server sends.
  */
 
+// ─── Sound Engine (Web Audio API — no external files needed) ─────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function getAudioCtx() {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    return audioCtx;
+}
+
+function playTone(frequency, duration, type = 'sine', volume = 0.3, delay = 0) {
+    try {
+        const ctx = getAudioCtx();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + delay);
+        gainNode.gain.setValueAtTime(volume, ctx.currentTime + delay);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+        oscillator.start(ctx.currentTime + delay);
+        oscillator.stop(ctx.currentTime + delay + duration);
+    } catch (e) { /* silently ignore audio errors */ }
+}
+
+function soundTick() {
+    playTone(880, 0.08, 'square', 0.15);
+}
+
+function soundUrgentTick() {
+    playTone(1100, 0.1, 'square', 0.25);
+}
+
+function soundCorrect() {
+    playTone(523, 0.12, 'sine', 0.4);       // C5
+    playTone(659, 0.12, 'sine', 0.4, 0.13); // E5
+    playTone(784, 0.25, 'sine', 0.4, 0.26); // G5
+}
+
+function soundWrong() {
+    playTone(300, 0.15, 'sawtooth', 0.3);
+    playTone(200, 0.3, 'sawtooth', 0.3, 0.16);
+}
+
+function soundGameStart() {
+    [261, 329, 392, 523].forEach((freq, i) => {
+        playTone(freq, 0.2, 'sine', 0.35, i * 0.12);
+    });
+}
+
+function soundGameOver() {
+    [523, 659, 784, 1047].forEach((freq, i) => {
+        playTone(freq, 0.3, 'sine', 0.4, i * 0.15);
+    });
+}
+
+function soundCountdown() {
+    playTone(440, 0.15, 'sine', 0.3);
+}
+
 let socket = null;
 let sessionId = '';
 let username = '';
@@ -57,6 +117,7 @@ function setupSocketListeners() {
         console.log('Game started! Total questions:', data.total_questions);
         currentScore = 0;
         updateScoreDisplay();
+        soundGameStart();
         // Show waiting screen until first question arrives
         showScreen('waitingScreen');
     });
@@ -170,6 +231,15 @@ function startVisualTimer(duration) {
     timerInterval = setInterval(() => {
         timeLeft--;
         updateTimerDisplay(timeLeft, duration);
+
+        // Play tick sounds
+        if (timeLeft > 0) {
+            if (timeLeft <= 3) {
+                soundUrgentTick();
+            } else {
+                soundTick();
+            }
+        }
 
         if (timeLeft <= 0) {
             clearTimer();
@@ -288,6 +358,13 @@ function showAnswerResult(data) {
     currentScore = data.total_score;
     updateScoreDisplay();
 
+    // Play correct/wrong sound
+    if (data.is_correct) {
+        soundCorrect();
+    } else {
+        soundWrong();
+    }
+
     // Update answered indicator
     const indicator = document.getElementById('answeredIndicator');
     const icon = document.getElementById('answeredIcon');
@@ -404,6 +481,7 @@ function startCountdownDisplay(seconds) {
 
 function showGameOver(data) {
     clearTimer();
+    soundGameOver();
     showScreen('gameOverScreen');
 
     const list = document.getElementById('finalLeaderboard');
