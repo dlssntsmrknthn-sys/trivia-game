@@ -9,7 +9,7 @@ import sheets_sync
 
 app = Flask(__name__)
 app.secret_key = 'trivia_secret_key_2024'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # Initialize database (runs on startup whether via gunicorn or direct)
 db.init_db()
