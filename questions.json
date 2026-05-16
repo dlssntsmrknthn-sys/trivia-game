@@ -1,0 +1,352 @@
+[
+  {
+    "id": 1,
+    "question": "What is the capital city of France?",
+    "options": ["London", "Berlin", "Paris", "Madrid"],
+    "answer": "Paris",
+    "keyword": "Paris France Eiffel Tower"
+  },
+  {
+    "id": 2,
+    "question": "Which planet is known as the Red Planet?",
+    "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+    "answer": "Mars",
+    "keyword": "Mars planet red space"
+  },
+  {
+    "id": 3,
+    "question": "Who painted the Mona Lisa?",
+    "options": ["Vincent van Gogh", "Pablo Picasso", "Leonardo da Vinci", "Michelangelo"],
+    "answer": "Leonardo da Vinci",
+    "keyword": "Mona Lisa painting art"
+  },
+  {
+    "id": 4,
+    "question": "What is the largest ocean on Earth?",
+    "options": ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"],
+    "answer": "Pacific Ocean",
+    "keyword": "Pacific Ocean water sea"
+  },
+  {
+    "id": 5,
+    "question": "How many sides does a hexagon have?",
+    "options": ["5", "6", "7", "8"],
+    "answer": "6",
+    "keyword": "hexagon geometry shape"
+  },
+  {
+    "id": 6,
+    "question": "What is the chemical symbol for gold?",
+    "options": ["Go", "Gd", "Au", "Ag"],
+    "answer": "Au",
+    "keyword": "gold metal chemistry element"
+  },
+  {
+    "id": 7,
+    "question": "Which country is home to the kangaroo?",
+    "options": ["New Zealand", "South Africa", "Brazil", "Australia"],
+    "answer": "Australia",
+    "keyword": "kangaroo Australia wildlife"
+  },
+  {
+    "id": 8,
+    "question": "What is the fastest land animal?",
+    "options": ["Lion", "Cheetah", "Horse", "Greyhound"],
+    "answer": "Cheetah",
+    "keyword": "cheetah fast animal running"
+  },
+  {
+    "id": 9,
+    "question": "In which year did World War II end?",
+    "options": ["1943", "1944", "1945", "1946"],
+    "answer": "1945",
+    "keyword": "World War II history 1945"
+  },
+  {
+    "id": 10,
+    "question": "What is the smallest planet in our solar system?",
+    "options": ["Mars", "Mercury", "Venus", "Pluto"],
+    "answer": "Mercury",
+    "keyword": "Mercury planet solar system small"
+  },
+  {
+    "id": 11,
+    "question": "Who wrote the play 'Romeo and Juliet'?",
+    "options": ["Charles Dickens", "William Shakespeare", "Jane Austen", "Mark Twain"],
+    "answer": "William Shakespeare",
+    "keyword": "Romeo Juliet Shakespeare play"
+  },
+  {
+    "id": 12,
+    "question": "What is the hardest natural substance on Earth?",
+    "options": ["Gold", "Iron", "Diamond", "Quartz"],
+    "answer": "Diamond",
+    "keyword": "diamond hardest mineral gemstone"
+  },
+  {
+    "id": 13,
+    "question": "How many continents are there on Earth?",
+    "options": ["5", "6", "7", "8"],
+    "answer": "7",
+    "keyword": "continents Earth world map"
+  },
+  {
+    "id": 14,
+    "question": "What is the currency of Japan?",
+    "options": ["Yuan", "Won", "Yen", "Ringgit"],
+    "answer": "Yen",
+    "keyword": "Japan yen currency money"
+  },
+  {
+    "id": 15,
+    "question": "Which element has the atomic number 1?",
+    "options": ["Helium", "Oxygen", "Hydrogen", "Carbon"],
+    "answer": "Hydrogen",
+    "keyword": "hydrogen element periodic table"
+  },
+  {
+    "id": 16,
+    "question": "What is the tallest mountain in the world?",
+    "options": ["K2", "Mount Kilimanjaro", "Mount Everest", "Mont Blanc"],
+    "answer": "Mount Everest",
+    "keyword": "Mount Everest mountain tallest"
+  },
+  {
+    "id": 17,
+    "question": "Which organ pumps blood through the human body?",
+    "options": ["Liver", "Lungs", "Kidney", "Heart"],
+    "answer": "Heart",
+    "keyword": "heart human body organ blood"
+  },
+  {
+    "id": 18,
+    "question": "What is the largest country in the world by area?",
+    "options": ["China", "United States", "Canada", "Russia"],
+    "answer": "Russia",
+    "keyword": "Russia largest country map"
+  },
+  {
+    "id": 19,
+    "question": "How many players are on a standard soccer team?",
+    "options": ["9", "10", "11", "12"],
+    "answer": "11",
+    "keyword": "soccer football team players sport"
+  },
+  {
+    "id": 20,
+    "question": "What is the boiling point of water at sea level in Celsius?",
+    "options": ["90°C", "95°C", "100°C", "105°C"],
+    "answer": "100°C",
+    "keyword": "water boiling temperature science"
+  },
+  {
+    "id": 21,
+    "question": "Which planet has the most moons?",
+    "options": ["Jupiter", "Saturn", "Uranus", "Neptune"],
+    "answer": "Saturn",
+    "keyword": "Saturn moons planet rings"
+  },
+  {
+    "id": 22,
+    "question": "What language is spoken in Brazil?",
+    "options": ["Spanish", "Portuguese", "French", "English"],
+    "answer": "Portuguese",
+    "keyword": "Brazil Portuguese language South America"
+  },
+  {
+    "id": 23,
+    "question": "Who invented the telephone?",
+    "options": ["Thomas Edison", "Nikola Tesla", "Alexander Graham Bell", "Albert Einstein"],
+    "answer": "Alexander Graham Bell",
+    "keyword": "telephone invention Alexander Graham Bell"
+  },
+  {
+    "id": 24,
+    "question": "What is the longest river in the world?",
+    "options": ["Amazon", "Yangtze", "Mississippi", "Nile"],
+    "answer": "Nile",
+    "keyword": "Nile river longest Egypt"
+  },
+  {
+    "id": 25,
+    "question": "Which gas do plants absorb from the atmosphere?",
+    "options": ["Oxygen", "Nitrogen", "Carbon Dioxide", "Hydrogen"],
+    "answer": "Carbon Dioxide",
+    "keyword": "plants photosynthesis carbon dioxide nature"
+  },
+  {
+    "id": 26,
+    "question": "What is the national animal of China?",
+    "options": ["Tiger", "Dragon", "Giant Panda", "Red Panda"],
+    "answer": "Giant Panda",
+    "keyword": "Giant Panda China national animal"
+  },
+  {
+    "id": 27,
+    "question": "How many bones are in the adult human body?",
+    "options": ["196", "206", "216", "226"],
+    "answer": "206",
+    "keyword": "human skeleton bones anatomy"
+  },
+  {
+    "id": 28,
+    "question": "Which country invented pizza?",
+    "options": ["Greece", "Spain", "France", "Italy"],
+    "answer": "Italy",
+    "keyword": "pizza Italy food Italian"
+  },
+  {
+    "id": 29,
+    "question": "What is the speed of light in a vacuum?",
+    "options": ["200,000 km/s", "250,000 km/s", "300,000 km/s", "350,000 km/s"],
+    "answer": "300,000 km/s",
+    "keyword": "speed of light physics science"
+  },
+  {
+    "id": 30,
+    "question": "Which famous scientist developed the theory of relativity?",
+    "options": ["Isaac Newton", "Niels Bohr", "Albert Einstein", "Stephen Hawking"],
+    "answer": "Albert Einstein",
+    "keyword": "Einstein relativity physics scientist"
+  },
+  {
+    "id": 31,
+    "question": "What is the capital of Australia?",
+    "options": ["Sydney", "Melbourne", "Brisbane", "Canberra"],
+    "answer": "Canberra",
+    "keyword": "Canberra Australia capital city"
+  },
+  {
+    "id": 32,
+    "question": "Which ocean is the smallest?",
+    "options": ["Indian Ocean", "Southern Ocean", "Arctic Ocean", "Atlantic Ocean"],
+    "answer": "Arctic Ocean",
+    "keyword": "Arctic Ocean smallest ice"
+  },
+  {
+    "id": 33,
+    "question": "What is the most spoken language in the world?",
+    "options": ["English", "Spanish", "Mandarin Chinese", "Hindi"],
+    "answer": "Mandarin Chinese",
+    "keyword": "Mandarin Chinese language spoken world"
+  },
+  {
+    "id": 34,
+    "question": "Which planet is closest to the Sun?",
+    "options": ["Venus", "Earth", "Mercury", "Mars"],
+    "answer": "Mercury",
+    "keyword": "Mercury planet closest Sun solar system"
+  },
+  {
+    "id": 35,
+    "question": "What is the largest mammal in the world?",
+    "options": ["African Elephant", "Blue Whale", "Giraffe", "Hippopotamus"],
+    "answer": "Blue Whale",
+    "keyword": "Blue Whale largest mammal ocean"
+  },
+  {
+    "id": 36,
+    "question": "In which country is the Taj Mahal located?",
+    "options": ["Pakistan", "Bangladesh", "India", "Nepal"],
+    "answer": "India",
+    "keyword": "Taj Mahal India monument"
+  },
+  {
+    "id": 37,
+    "question": "What is the chemical formula for water?",
+    "options": ["HO", "H2O", "H3O", "OH2"],
+    "answer": "H2O",
+    "keyword": "water molecule chemistry H2O"
+  },
+  {
+    "id": 38,
+    "question": "Who was the first person to walk on the Moon?",
+    "options": ["Buzz Aldrin", "Yuri Gagarin", "Neil Armstrong", "John Glenn"],
+    "answer": "Neil Armstrong",
+    "keyword": "Neil Armstrong Moon landing astronaut"
+  },
+  {
+    "id": 39,
+    "question": "What is the largest desert in the world?",
+    "options": ["Sahara Desert", "Arabian Desert", "Gobi Desert", "Antarctic Desert"],
+    "answer": "Antarctic Desert",
+    "keyword": "Antarctic Desert largest cold ice"
+  },
+  {
+    "id": 40,
+    "question": "Which vitamin is produced when skin is exposed to sunlight?",
+    "options": ["Vitamin A", "Vitamin B12", "Vitamin C", "Vitamin D"],
+    "answer": "Vitamin D",
+    "keyword": "Vitamin D sunlight skin health"
+  },
+  {
+    "id": 41,
+    "question": "What is the capital of Canada?",
+    "options": ["Toronto", "Vancouver", "Montreal", "Ottawa"],
+    "answer": "Ottawa",
+    "keyword": "Ottawa Canada capital city"
+  },
+  {
+    "id": 42,
+    "question": "How many strings does a standard guitar have?",
+    "options": ["4", "5", "6", "7"],
+    "answer": "6",
+    "keyword": "guitar strings music instrument"
+  },
+  {
+    "id": 43,
+    "question": "Which country has the largest population in the world?",
+    "options": ["India", "China", "United States", "Indonesia"],
+    "answer": "India",
+    "keyword": "India population largest country"
+  },
+  {
+    "id": 44,
+    "question": "What is the powerhouse of the cell?",
+    "options": ["Nucleus", "Ribosome", "Mitochondria", "Chloroplast"],
+    "answer": "Mitochondria",
+    "keyword": "mitochondria cell biology powerhouse"
+  },
+  {
+    "id": 45,
+    "question": "Which sport is played at Wimbledon?",
+    "options": ["Cricket", "Golf", "Tennis", "Badminton"],
+    "answer": "Tennis",
+    "keyword": "Wimbledon tennis sport grass court"
+  },
+  {
+    "id": 46,
+    "question": "What is the largest organ in the human body?",
+    "options": ["Liver", "Brain", "Skin", "Lungs"],
+    "answer": "Skin",
+    "keyword": "skin human body largest organ"
+  },
+  {
+    "id": 47,
+    "question": "Which country is known as the Land of the Rising Sun?",
+    "options": ["China", "South Korea", "Japan", "Thailand"],
+    "answer": "Japan",
+    "keyword": "Japan rising sun country"
+  },
+  {
+    "id": 48,
+    "question": "What is the square root of 144?",
+    "options": ["10", "11", "12", "13"],
+    "answer": "12",
+    "keyword": "mathematics square root numbers"
+  },
+  {
+    "id": 49,
+    "question": "Which bird is known for its colorful tail feathers?",
+    "options": ["Flamingo", "Peacock", "Parrot", "Toucan"],
+    "answer": "Peacock",
+    "keyword": "peacock colorful feathers bird"
+  },
+  {
+    "id": 50,
+    "question": "What is the main ingredient in guacamole?",
+    "options": ["Tomato", "Onion", "Avocado", "Lime"],
+    "answer": "Avocado",
+    "keyword": "guacamole avocado food Mexican"
+  }
+]

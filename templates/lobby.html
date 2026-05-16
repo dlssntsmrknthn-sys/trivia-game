@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriviaBlast - Lobby</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="lobby-body">
+    <div class="lobby-container">
+
+        <!-- Header -->
+        <div class="lobby-header">
+            <div class="logo-small">🎮 TriviaBlast</div>
+            <div class="session-badge">
+                Session: <strong id="sessionIdDisplay">{{ session_id }}</strong>
+                <button class="copy-btn-small" onclick="copySessionId()" title="Copy">📋</button>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">⚠️ {{ error }}</div>
+        {% endif %}
+
+        <!-- Join Form (for players) -->
+        <div id="joinSection" class="join-section">
+            <div class="lobby-card">
+                <div class="lobby-card-icon">🎯</div>
+                <h2>Join the Game!</h2>
+                <p>Session Code: <strong class="highlight-code">{{ session_id }}</strong></p>
+                <div class="join-form">
+                    <input type="text" id="usernameInput" class="input-field input-large"
+                           placeholder="Enter your username" maxlength="20"
+                           autofocus>
+                    <button class="btn btn-primary btn-large" onclick="joinGame()">
+                        🚀 Join Game
+                    </button>
+                </div>
+                <div id="joinError" class="alert alert-error hidden"></div>
+                <div class="host-divider">
+                    <span>or</span>
+                </div>
+                <button class="btn btn-outline" onclick="joinAsHost()">
+                    👑 Join as Host
+                </button>
+            </div>
+        </div>
+
+        <!-- Waiting Room (shown after joining) -->
+        <div id="waitingSection" class="waiting-section hidden">
+            <div class="waiting-header">
+                <h2 id="waitingTitle">⏳ Waiting for Host to Start...</h2>
+                <p id="waitingSubtitle">Get ready! The game will begin soon.</p>
+            </div>
+
+            <div class="waiting-grid">
+                <!-- Player Info -->
+                <div class="player-info-card">
+                    <div class="player-avatar" id="playerAvatar">😊</div>
+                    <div class="player-name" id="playerNameDisplay"></div>
+                    <div class="player-status">✅ You're in!</div>
+                </div>
+
+                <!-- Player List -->
+                <div class="players-list-card">
+                    <h3>👥 Players Joined (<span id="playerCount">0</span>)</h3>
+                    <div id="playersList" class="players-grid"></div>
+                </div>
+            </div>
+
+            <!-- Host Controls -->
+            <div id="hostControls" class="host-controls hidden">
+                <div class="host-panel">
+                    <h3>👑 Host Controls</h3>
+                    <p>Players joined: <strong id="hostPlayerCount">0</strong></p>
+                    <div id="hostAnswerCount" class="answer-count hidden">
+                        Answers: <span id="answeredCount">0</span> / <span id="totalCount">0</span>
+                    </div>
+                    <button class="btn btn-success btn-xlarge" id="startBtn" onclick="startGame()">
+                        🚀 Start Game!
+                    </button>
+                    <p class="host-tip">💡 Make sure all players have joined before starting.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Countdown overlay -->
+        <div id="countdownOverlay" class="countdown-overlay hidden">
+            <div class="countdown-content">
+                <div class="countdown-text">Game Starting in...</div>
+                <div class="countdown-number" id="countdownNum">3</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SESSION_ID = "{{ session_id }}";
+        const urlParams = new URLSearchParams(window.location.search);
+        const isHost = urlParams.get('host') === 'true';
+        const prefilledUsername = urlParams.get('username') || '';
+
+        let socket = null;
+        let currentUsername = '';
+        let isHostMode = false;
+
+        const avatars = ['😊', '🦊', '🐼', '🦁', '🐸', '🦄', '🐯', '🦋', '🐙', '🦅', '🐬', '🦊'];
+
+        function getRandomAvatar() {
+            return avatars[Math.floor(Math.random() * avatars.length)];
+        }
+
+        function initSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('Connected to server');
+            });
+
+            socket.on('join_success', (data) => {
+                currentUsername = data.username;
+                showWaitingRoom(false);
+            });
+
+            socket.on('join_error', (data) => {
+                showError(data.message);
+                const btn = document.querySelector('#joinSection .btn-primary');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '🚀 Join Game';
+                }
+            });
+
+            socket.on('host_joined', (data) => {
+                isHostMode = true;
+                showWaitingRoom(true);
+                updatePlayerList(data.players);
+            });
+
+            socket.on('player_list_update', (data) => {
+                updatePlayerList(data.players);
+                document.getElementById('playerCount').textContent = data.count;
+                document.getElementById('hostPlayerCount').textContent = data.count;
+            });
+
+            socket.on('game_started', (data) => {
+                startCountdown();
+            });
+
+            socket.on('answer_count_update', (data) => {
+                document.getElementById('answeredCount').textContent = data.answered;
+                document.getElementById('totalCount').textContent = data.total;
+                document.getElementById('hostAnswerCount').classList.remove('hidden');
+            });
+
+            socket.on('new_question', (data) => {
+                // Redirect to game page
+                if (isHostMode) {
+                    window.location.href = `/game/${SESSION_ID}?username=HOST&host=true`;
+                } else {
+                    window.location.href = `/game/${SESSION_ID}?username=${encodeURIComponent(currentUsername)}`;
+                }
+            });
+        }
+
+        function joinGame() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if (!username) {
+                showError('Please enter a username.');
+                return;
+            }
+            if (username.length < 2) {
+                showError('Username must be at least 2 characters.');
+                return;
+            }
+
+            const btn = document.querySelector('#joinSection .btn-primary');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Joining...';
+
+            if (!socket) initSocket();
+            socket.emit('player_join', { session_id: SESSION_ID, username: username });
+        }
+
+        function joinAsHost() {
+            if (!socket) initSocket();
+            socket.emit('host_join', { session_id: SESSION_ID });
+        }
+
+        function startGame() {
+            const btn = document.getElementById('startBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Starting...';
+            socket.emit('start_game', { session_id: SESSION_ID });
+        }
+
+        function showWaitingRoom(hostMode) {
+            document.getElementById('joinSection').classList.add('hidden');
+            document.getElementById('waitingSection').classList.remove('hidden');
+
+            if (hostMode) {
+                document.getElementById('waitingTitle').textContent = '👑 Host Dashboard';
+                document.getElementById('waitingSubtitle').textContent = 'Start the game when all players have joined.';
+                document.getElementById('hostControls').classList.remove('hidden');
+                document.getElementById('playerAvatar').textContent = '👑';
+                document.getElementById('playerNameDisplay').textContent = 'HOST';
+            } else {
+                document.getElementById('playerAvatar').textContent = getRandomAvatar();
+                document.getElementById('playerNameDisplay').textContent = currentUsername;
+            }
+        }
+
+        function updatePlayerList(players) {
+            const list = document.getElementById('playersList');
+            list.innerHTML = '';
+            players.forEach((p, i) => {
+                const div = document.createElement('div');
+                div.className = 'player-chip';
+                div.innerHTML = `<span class="chip-avatar">${avatars[i % avatars.length]}</span> ${p}`;
+                list.appendChild(div);
+            });
+            document.getElementById('playerCount').textContent = players.length;
+            document.getElementById('hostPlayerCount').textContent = players.length;
+        }
+
+        function showError(msg) {
+            const err = document.getElementById('joinError');
+            err.textContent = '⚠️ ' + msg;
+            err.classList.remove('hidden');
+            setTimeout(() => err.classList.add('hidden'), 4000);
+        }
+
+        function startCountdown() {
+            const overlay = document.getElementById('countdownOverlay');
+            const numEl = document.getElementById('countdownNum');
+            overlay.classList.remove('hidden');
+            let count = 3;
+            numEl.textContent = count;
+
+            const interval = setInterval(() => {
+                count--;
+                if (count <= 0) {
+                    clearInterval(interval);
+                    numEl.textContent = '🚀';
+                } else {
+                    numEl.textContent = count;
+                    numEl.classList.add('countdown-pulse');
+                    setTimeout(() => numEl.classList.remove('countdown-pulse'), 400);
+                }
+            }, 1000);
+        }
+
+        function copySessionId() {
+            navigator.clipboard.writeText(SESSION_ID).then(() => {
+                const btn = document.querySelector('.copy-btn-small');
+                btn.textContent = '✅';
+                setTimeout(() => btn.textContent = '📋', 2000);
+            });
+        }
+
+        // Auto-fill username if provided in URL
+        window.addEventListener('DOMContentLoaded', () => {
+            if (prefilledUsername) {
+                document.getElementById('usernameInput').value = prefilledUsername;
+            }
+
+            if (isHost) {
+                initSocket();
+                joinAsHost();
+            }
+
+            document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') joinGame();
+            });
+        });
+    </script>
+</body>
+</html>

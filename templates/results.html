@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriviaBlast - Final Results</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body class="results-body">
+    <div class="results-container">
+
+        <!-- Header -->
+        <div class="results-header">
+            <div class="confetti-container" id="confettiContainer"></div>
+            <div class="trophy-big">🏆</div>
+            <h1 class="results-title">Final Results!</h1>
+            <p class="results-subtitle">Session: <strong>{{ session_id }}</strong></p>
+        </div>
+
+        <!-- Podium (Top 3) -->
+        {% if scores %}
+        <div class="podium-section">
+            <div class="podium">
+                <!-- 2nd Place -->
+                {% if scores|length > 1 %}
+                <div class="podium-place podium-2nd">
+                    <div class="podium-avatar">🥈</div>
+                    <div class="podium-name">{{ scores[1].username }}</div>
+                    <div class="podium-score">{{ scores[1].score }}</div>
+                    <div class="podium-block podium-block-2">2nd</div>
+                </div>
+                {% endif %}
+
+                <!-- 1st Place -->
+                <div class="podium-place podium-1st">
+                    <div class="crown-icon">👑</div>
+                    <div class="podium-avatar">🥇</div>
+                    <div class="podium-name">{{ scores[0].username }}</div>
+                    <div class="podium-score">{{ scores[0].score }}</div>
+                    <div class="podium-block podium-block-1">1st</div>
+                </div>
+
+                <!-- 3rd Place -->
+                {% if scores|length > 2 %}
+                <div class="podium-place podium-3rd">
+                    <div class="podium-avatar">🥉</div>
+                    <div class="podium-name">{{ scores[2].username }}</div>
+                    <div class="podium-score">{{ scores[2].score }}</div>
+                    <div class="podium-block podium-block-3">3rd</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Full Rankings Table -->
+        <div class="rankings-section">
+            <h2 class="rankings-title">📋 Full Rankings</h2>
+            <div class="rankings-table">
+                <div class="rankings-header">
+                    <span>Rank</span>
+                    <span>Player</span>
+                    <span>Score</span>
+                </div>
+                {% for player in scores %}
+                <div class="ranking-row {% if loop.index == 1 %}rank-gold{% elif loop.index == 2 %}rank-silver{% elif loop.index == 3 %}rank-bronze{% endif %}">
+                    <span class="rank-number">
+                        {% if loop.index == 1 %}🥇
+                        {% elif loop.index == 2 %}🥈
+                        {% elif loop.index == 3 %}🥉
+                        {% else %}#{{ loop.index }}
+                        {% endif %}
+                    </span>
+                    <span class="rank-username">{{ player.username }}</span>
+                    <span class="rank-score">{{ player.score }} pts</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% else %}
+        <div class="no-results">
+            <p>No results found for this session.</p>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="results-actions">
+            <a href="/" class="btn btn-primary btn-large">🎮 Play Again</a>
+            <button class="btn btn-outline btn-large" onclick="window.print()">🖨️ Print Results</button>
+        </div>
+
+        <!-- Stats Summary -->
+        {% if scores %}
+        <div class="stats-summary">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value">{{ scores|length }}</div>
+                <div class="stat-name">Players</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-value">{{ scores[0].score }}</div>
+                <div class="stat-name">Top Score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-value">
+                    {% set total = namespace(val=0) %}
+                    {% for s in scores %}{% set total.val = total.val + s.score %}{% endfor %}
+                    {{ (total.val / scores|length)|int }}
+                </div>
+                <div class="stat-name">Avg Score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value">25</div>
+                <div class="stat-name">Questions</div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        // Confetti animation
+        function createConfetti() {
+            const container = document.getElementById('confettiContainer');
+            const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff922b', '#cc5de8'];
+            for (let i = 0; i < 80; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti-piece';
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.animationDelay = Math.random() * 3 + 's';
+                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                container.appendChild(confetti);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            createConfetti();
+
+            // Animate ranking rows
+            const rows = document.querySelectorAll('.ranking-row');
+            rows.forEach((row, i) => {
+                row.style.animationDelay = `${i * 0.1}s`;
+                row.classList.add('slide-in');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriviaBlast 🎮</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body class="home-body">
+    <div class="home-container">
+        <!-- Logo / Title -->
+        <div class="logo-section">
+            <div class="logo-icon">🎮</div>
+            <h1 class="logo-title">TriviaBlast</h1>
+            <p class="logo-subtitle">The Ultimate Multiplayer Trivia Experience</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">
+            ⚠️ {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Main Cards -->
+        <div class="home-cards">
+            <!-- Host Card -->
+            <div class="card host-card">
+                <div class="card-icon">👑</div>
+                <h2>Host a Game</h2>
+                <p>Create a new trivia session and invite your friends to join!</p>
+                <button class="btn btn-primary btn-large" id="createSessionBtn" onclick="createSession()">
+                    <span class="btn-icon">✨</span> Create Session
+                </button>
+                <div id="sessionResult" class="session-result hidden">
+                    <p class="session-label">Share this code with players:</p>
+                    <div class="session-code-box">
+                        <span id="sessionCode" class="session-code"></span>
+                        <button class="copy-btn" onclick="copyCode()" title="Copy code">📋</button>
+                    </div>
+                    <a id="hostLink" href="#" class="btn btn-success btn-large">
+                        🚀 Open Host Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Join Card -->
+            <div class="card join-card">
+                <div class="card-icon">🎯</div>
+                <h2>Join a Game</h2>
+                <p>Enter the session code and your username to join the fun!</p>
+                <div class="join-form">
+                    <input type="text" id="joinCode" class="input-field" placeholder="Enter Session Code (e.g. AB12CD)"
+                           maxlength="6" oninput="this.value = this.value.toUpperCase()">
+                    <input type="text" id="joinUsername" class="input-field" placeholder="Your Username"
+                           maxlength="20">
+                    <button class="btn btn-secondary btn-large" onclick="joinGame()">
+                        <span class="btn-icon">🎮</span> Join Game
+                    </button>
+                </div>
+                <div id="joinError" class="alert alert-error hidden"></div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="features">
+            <div class="feature">
+                <span class="feature-icon">⚡</span>
+                <span>Real-time Multiplayer</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">⏱️</span>
+                <span>15-Second Timer</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🏆</span>
+                <span>Live Leaderboard</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🖼️</span>
+                <span>Visual Questions</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🎲</span>
+                <span>25 Random Questions</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function createSession() {
+            const btn = document.getElementById('createSessionBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Creating...';
+
+            try {
+                const response = await fetch('/create_session', { method: 'POST' });
+                const data = await response.json();
+                const sessionId = data.session_id;
+
+                document.getElementById('sessionCode').textContent = sessionId;
+                document.getElementById('hostLink').href = `/join/${sessionId}?host=true`;
+                document.getElementById('sessionResult').classList.remove('hidden');
+                btn.innerHTML = '✅ Session Created!';
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="btn-icon">✨</span> Create Session';
+                alert('Failed to create session. Please try again.');
+            }
+        }
+
+        function copyCode() {
+            const code = document.getElementById('sessionCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅';
+                setTimeout(() => btn.textContent = '📋', 2000);
+            });
+        }
+
+        function joinGame() {
+            const code = document.getElementById('joinCode').value.trim().toUpperCase();
+            const username = document.getElementById('joinUsername').value.trim();
+            const errorDiv = document.getElementById('joinError');
+
+            if (!code) {
+                showJoinError('Please enter a session code.');
+                return;
+            }
+            if (code.length !== 6) {
+                showJoinError('Session code must be 6 characters.');
+                return;
+            }
+            if (!username) {
+                showJoinError('Please enter your username.');
+                return;
+            }
+            if (username.length < 2) {
+                showJoinError('Username must be at least 2 characters.');
+                return;
+            }
+
+            window.location.href = `/join/${code}?username=${encodeURIComponent(username)}`;
+        }
+
+        function showJoinError(msg) {
+            const errorDiv = document.getElementById('joinError');
+            errorDiv.textContent = '⚠️ ' + msg;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => errorDiv.classList.add('hidden'), 4000);
+        }
+
+        // Allow Enter key to join
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('joinUsername').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') joinGame();
+            });
+            document.getElementById('joinCode').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') joinGame();
+            });
+        });
+    </script>
+</body>
+</html>

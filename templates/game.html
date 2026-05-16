@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriviaBlast - Game</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="game-body">
+
+    <!-- Top Bar -->
+    <div class="game-topbar">
+        <div class="topbar-left">
+            <span class="logo-tiny">🎮</span>
+            <span id="sessionBadge" class="session-tiny">{{ session_id }}</span>
+        </div>
+        <div class="topbar-center">
+            <span id="questionProgress" class="question-progress">Question 1 / 25</span>
+        </div>
+        <div class="topbar-right">
+            <span class="score-label">Score:</span>
+            <span id="currentScore" class="score-value">0</span>
+        </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <div class="game-container">
+
+        <!-- Waiting for game to start -->
+        <div id="waitingScreen" class="screen waiting-game-screen">
+            <div class="waiting-animation">
+                <div class="pulse-ring"></div>
+                <div class="waiting-icon">⏳</div>
+            </div>
+            <h2>Connecting to game...</h2>
+            <p>Welcome, <strong id="playerNameWait"></strong>!</p>
+        </div>
+
+        <!-- Question Screen -->
+        <div id="questionScreen" class="screen question-screen hidden">
+            <!-- Timer Bar -->
+            <div class="timer-container">
+                <div class="timer-bar-bg">
+                    <div id="timerBar" class="timer-bar"></div>
+                </div>
+                <div id="timerDisplay" class="timer-display">15</div>
+            </div>
+
+            <!-- Question Image -->
+            <div class="question-image-container">
+                <img id="questionImage" src="" alt="Question Image" class="question-image"
+                     onerror="this.style.display='none'">
+                <div id="imagePlaceholder" class="image-placeholder hidden">🎯</div>
+            </div>
+
+            <!-- Question Text -->
+            <div class="question-box">
+                <div class="question-number-badge" id="questionNumBadge">Q1</div>
+                <h2 id="questionText" class="question-text"></h2>
+            </div>
+
+            <!-- Answer Options -->
+            <div class="options-grid" id="optionsGrid">
+                <button class="option-btn option-a" id="opt0" onclick="submitAnswer(0)">
+                    <span class="option-letter">A</span>
+                    <span class="option-text" id="optText0"></span>
+                </button>
+                <button class="option-btn option-b" id="opt1" onclick="submitAnswer(1)">
+                    <span class="option-letter">B</span>
+                    <span class="option-text" id="optText1"></span>
+                </button>
+                <button class="option-btn option-c" id="opt2" onclick="submitAnswer(2)">
+                    <span class="option-letter">C</span>
+                    <span class="option-text" id="optText2"></span>
+                </button>
+                <button class="option-btn option-d" id="opt3" onclick="submitAnswer(3)">
+                    <span class="option-letter">D</span>
+                    <span class="option-text" id="optText3"></span>
+                </button>
+            </div>
+
+            <!-- Answered indicator -->
+            <div id="answeredIndicator" class="answered-indicator hidden">
+                <div class="answered-icon" id="answeredIcon">⏳</div>
+                <div class="answered-text" id="answeredText">Answer submitted! Waiting for others...</div>
+            </div>
+        </div>
+
+        <!-- Answer Result Screen -->
+        <div id="resultScreen" class="screen result-screen hidden">
+            <div class="result-icon" id="resultIcon">✅</div>
+            <h2 id="resultTitle" class="result-title">Correct!</h2>
+            <div class="result-answer-box">
+                <span class="result-label">Correct Answer:</span>
+                <span id="correctAnswerDisplay" class="result-correct-answer"></span>
+            </div>
+            <div class="points-earned" id="pointsEarned">+1000 pts</div>
+            <div class="total-score-display">
+                Total Score: <strong id="totalScoreDisplay">0</strong>
+            </div>
+        </div>
+
+        <!-- Leaderboard Screen (between questions) -->
+        <div id="leaderboardScreen" class="screen leaderboard-screen hidden">
+            <h2 class="leaderboard-title">🏆 Leaderboard</h2>
+            <div id="leaderboardList" class="leaderboard-list"></div>
+            <div id="nextQuestionCountdown" class="next-countdown hidden">
+                Next question in <span id="nextCountNum">5</span>s...
+            </div>
+            <!-- Host only: next question button -->
+            <div id="hostNextBtn" class="host-next hidden">
+                <button class="btn btn-primary btn-large" onclick="requestNextQuestion()">
+                    ➡️ Next Question
+                </button>
+            </div>
+        </div>
+
+        <!-- Host View Screen -->
+        <div id="hostScreen" class="screen host-screen hidden">
+            <div class="host-question-display">
+                <div class="host-timer-ring">
+                    <svg viewBox="0 0 100 100" class="timer-svg">
+                        <circle cx="50" cy="50" r="45" class="timer-circle-bg"/>
+                        <circle cx="50" cy="50" r="45" class="timer-circle-fg" id="timerCircle"/>
+                    </svg>
+                    <div class="host-timer-num" id="hostTimerNum">15</div>
+                </div>
+                <div class="host-question-text" id="hostQuestionText"></div>
+                <div class="host-answer-stats">
+                    <div class="stat-box">
+                        <div class="stat-num" id="hostAnswered">0</div>
+                        <div class="stat-label">Answered</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-num" id="hostTotal">0</div>
+                        <div class="stat-label">Players</div>
+                    </div>
+                </div>
+                <div class="host-options-preview" id="hostOptionsPreview"></div>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="screen game-over-screen hidden">
+            <div class="game-over-header">
+                <div class="trophy-icon">🏆</div>
+                <h1>Game Over!</h1>
+                <p>Session: <strong>{{ session_id }}</strong></p>
+            </div>
+            <div id="finalLeaderboard" class="final-leaderboard"></div>
+            <div class="game-over-actions">
+                <a href="/" class="btn btn-primary btn-large">🏠 Play Again</a>
+                <a href="/results/{{ session_id }}" class="btn btn-outline btn-large">📊 View Full Results</a>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/static/js/game.js"></script>
+    <script>
+        // Initialize game with server-provided values
+        const SESSION_ID = "{{ session_id }}";
+        const USERNAME = "{{ username }}";
+        const urlParams = new URLSearchParams(window.location.search);
+        const IS_HOST = urlParams.get('host') === 'true';
+
+        document.getElementById('playerNameWait').textContent = IS_HOST ? 'Host' : USERNAME;
+
+        // Start the game client
+        initGame(SESSION_ID, USERNAME, IS_HOST);
+    </script>
+</body>
+</html>
